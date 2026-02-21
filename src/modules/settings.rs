@@ -32,7 +32,7 @@ impl<'a> SettingsService<'a> {
     pub fn get_settings(&self) -> Result<AppSettings, rusqlite::Error> {
         let conn = &self.db.conn;
         let mut stmt = conn.prepare("SELECT currency_code, currency_symbol, user_name, theme FROM app_preferences WHERE id = 1")?;
-        
+
         let result = stmt.query_row([], |row| {
             Ok(AppSettings {
                 currency_code: row.get(0)?,
@@ -85,21 +85,66 @@ impl<'a> SettingsService<'a> {
     /// Returns a list of supported currencies.
     pub fn get_currency_list(&self) -> Vec<CurrencyInfo> {
         vec![
-            CurrencyInfo { code: "INR".to_string(), symbol: "₹".to_string() },
-            CurrencyInfo { code: "USD".to_string(), symbol: "$".to_string() },
-            CurrencyInfo { code: "EUR".to_string(), symbol: "€".to_string() },
-            CurrencyInfo { code: "GBP".to_string(), symbol: "£".to_string() },
-            CurrencyInfo { code: "JPY".to_string(), symbol: "¥".to_string() },
-            CurrencyInfo { code: "AUD".to_string(), symbol: "A$".to_string() },
-            CurrencyInfo { code: "CAD".to_string(), symbol: "C$".to_string() },
-            CurrencyInfo { code: "CHF".to_string(), symbol: "Fr".to_string() },
-            CurrencyInfo { code: "CNY".to_string(), symbol: "¥".to_string() },
-            CurrencyInfo { code: "SAR".to_string(), symbol: "﷼".to_string() },
-            CurrencyInfo { code: "SGD".to_string(), symbol: "S$".to_string() },
-            CurrencyInfo { code: "NZD".to_string(), symbol: "NZ$".to_string() },
-            CurrencyInfo { code: "AED".to_string(), symbol: "د.إ".to_string() },
-            CurrencyInfo { code: "RUB".to_string(), symbol: "₽".to_string() },
-            CurrencyInfo { code: "BRL".to_string(), symbol: "R$".to_string() },
+            CurrencyInfo {
+                code: "INR".to_string(),
+                symbol: "₹".to_string(),
+            },
+            CurrencyInfo {
+                code: "USD".to_string(),
+                symbol: "$".to_string(),
+            },
+            CurrencyInfo {
+                code: "EUR".to_string(),
+                symbol: "€".to_string(),
+            },
+            CurrencyInfo {
+                code: "GBP".to_string(),
+                symbol: "£".to_string(),
+            },
+            CurrencyInfo {
+                code: "JPY".to_string(),
+                symbol: "¥".to_string(),
+            },
+            CurrencyInfo {
+                code: "AUD".to_string(),
+                symbol: "A$".to_string(),
+            },
+            CurrencyInfo {
+                code: "CAD".to_string(),
+                symbol: "C$".to_string(),
+            },
+            CurrencyInfo {
+                code: "CHF".to_string(),
+                symbol: "Fr".to_string(),
+            },
+            CurrencyInfo {
+                code: "CNY".to_string(),
+                symbol: "¥".to_string(),
+            },
+            CurrencyInfo {
+                code: "SAR".to_string(),
+                symbol: "﷼".to_string(),
+            },
+            CurrencyInfo {
+                code: "SGD".to_string(),
+                symbol: "S$".to_string(),
+            },
+            CurrencyInfo {
+                code: "NZD".to_string(),
+                symbol: "NZ$".to_string(),
+            },
+            CurrencyInfo {
+                code: "AED".to_string(),
+                symbol: "د.إ".to_string(),
+            },
+            CurrencyInfo {
+                code: "RUB".to_string(),
+                symbol: "₽".to_string(),
+            },
+            CurrencyInfo {
+                code: "BRL".to_string(),
+                symbol: "R$".to_string(),
+            },
         ]
     }
 }
@@ -121,13 +166,17 @@ mod tests {
         assert_eq!(settings.theme, "Dark");
 
         // Test Update Currency
-        service.update_currency("USD", "$").expect("Should update currency");
+        service
+            .update_currency("USD", "$")
+            .expect("Should update currency");
         let updated_currency = service.get_settings().unwrap();
         assert_eq!(updated_currency.currency_code, "USD");
         assert_eq!(updated_currency.currency_symbol, "$");
 
         // Test Update Profile
-        service.update_profile("Antigravity", "Light").expect("Should update profile");
+        service
+            .update_profile("Antigravity", "Light")
+            .expect("Should update profile");
         let updated_profile = service.get_settings().unwrap();
         assert_eq!(updated_profile.user_name, "Antigravity");
         assert_eq!(updated_profile.theme, "Light");

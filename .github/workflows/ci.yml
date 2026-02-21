@@ -1,0 +1,122 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  # ── Format Check ─────────────────────────────────────────────────────────────
+  fmt:
+    name: Rustfmt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
+      - run: cargo fmt --all -- --check
+
+  # ── Clippy ───────────────────────────────────────────────────────────────────
+  clippy:
+    name: Clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libxcb-shape0-dev libxcb-xfixes0-dev libxcb-render0-dev \
+            libxkbcommon-dev \
+            libfontconfig1-dev \
+            libfreetype6-dev \
+            libegl1-mesa-dev \
+            libgles2-mesa-dev \
+            libgl1-mesa-dev \
+            libwayland-dev \
+            libinput-dev \
+            libudev-dev \
+            clang \
+            libclang-dev \
+            cmake \
+            pkg-config
+
+      - uses: Swatinem/rust-cache@v2
+
+      - run: cargo clippy --all-targets -- -D warnings
+
+  # ── Build & Test ─────────────────────────────────────────────────────────────
+  test:
+    name: Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Linux system dependencies
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libxcb-shape0-dev libxcb-xfixes0-dev libxcb-render0-dev \
+            libxkbcommon-dev \
+            libfontconfig1-dev \
+            libfreetype6-dev \
+            libegl1-mesa-dev \
+            libgles2-mesa-dev \
+            libgl1-mesa-dev \
+            libwayland-dev \
+            libinput-dev \
+            libudev-dev \
+            clang \
+            libclang-dev \
+            cmake \
+            pkg-config
+
+      - name: Install macOS system dependencies
+        if: matrix.os == 'macos-latest'
+        run: |
+          brew install cmake pkg-config
+
+      - name: Install Windows system dependencies
+        if: matrix.os == 'windows-latest'
+        run: |
+          choco install cmake --installargs 'ADD_CMAKE_TO_PATH=System' -y
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build
+        run: cargo build
+
+      # Unit tests: db, finance, grocery, travel, dining, maintenance, gifts,
+      # household, settings (all have #[cfg(test)] blocks)
+      - name: Run unit tests
+        run: cargo test --lib
+
+      # Integration tests: tests/integration_tests.rs
+      # cloud_tests.rs needs tokio and real DB path — run without network deps
+      - name: Run integration tests
+        run: cargo test --test integration_tests
+
+      # cloud_tests.rs only tests local backup logic (no Google credentials needed)
+      - name: Run cloud tests
+        run: cargo test --test cloud_tests

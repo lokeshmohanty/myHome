@@ -66,7 +66,7 @@ impl<'a> HouseholdService<'a> {
             "SELECT id, name, relationship, date_of_birth, profile_photo_path, is_primary 
              FROM members WHERE deleted_at IS NULL",
         )?;
-        
+
         let iter = stmt.query_map([], |row| -> rusqlite::Result<Member> {
             let is_primary_int: i32 = row.get(5)?;
             Ok(Member {
@@ -121,7 +121,7 @@ impl<'a> HouseholdService<'a> {
             "SELECT id, member_id, name, document_type, document_number, issue_date, expiry_date, issuing_authority 
              FROM documents WHERE deleted_at IS NULL",
         )?;
-        
+
         let iter = stmt.query_map([], |row| -> rusqlite::Result<Document> {
             Ok(Document {
                 id: row.get(0)?,
@@ -154,14 +154,24 @@ mod tests {
         let service = HouseholdService::new(&db);
 
         // Add a member
-        let member_id = service.add_member("Bob", "Spouse", Some("1980-05-10"), true).unwrap();
-        
+        let member_id = service
+            .add_member("Bob", "Spouse", Some("1980-05-10"), true)
+            .unwrap();
+
         let members = service.get_members().unwrap();
         assert_eq!(members.len(), 1);
         assert_eq!(members[0].name, "Bob");
 
         // Add a document
-        service.add_document(Some(&member_id), "Passport", "ID", Some("A123"), Some("2030-01-01")).unwrap();
+        service
+            .add_document(
+                Some(&member_id),
+                "Passport",
+                "ID",
+                Some("A123"),
+                Some("2030-01-01"),
+            )
+            .unwrap();
 
         let docs = service.get_documents().unwrap();
         assert_eq!(docs.len(), 1);

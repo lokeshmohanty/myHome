@@ -30,7 +30,10 @@ impl<'a> DashboardService<'a> {
         Ok(DashboardSummary {
             net_balance: finance_service.get_total_balance(),
             active_trips: travel_service.get_trips().map(|t| t.len()).unwrap_or(0),
-            grocery_items: grocery_service.get_grocery_list().map(|i| i.len()).unwrap_or(0),
+            grocery_items: grocery_service
+                .get_grocery_list()
+                .map(|i| i.len())
+                .unwrap_or(0),
         })
     }
 
@@ -40,7 +43,7 @@ impl<'a> DashboardService<'a> {
              FROM transactions t
              JOIN categories c ON t.category_id = c.id
              WHERE t.amount_cents < 0
-             GROUP BY c.id"
+             GROUP BY c.id",
         )?;
         let rows = stmt.query_map([], |row| {
             let name: String = row.get(0)?;

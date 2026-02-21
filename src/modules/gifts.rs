@@ -41,14 +41,7 @@ impl<'a> GiftsService<'a> {
         conn.execute(
             "INSERT INTO people (id, name, relationship, date_of_birth, created_at, updated_at)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-            params![
-                id,
-                name,
-                relationship,
-                date_of_birth,
-                now,
-                now
-            ],
+            params![id, name, relationship, date_of_birth, now, now],
         )?;
         Ok(id)
     }
@@ -58,7 +51,7 @@ impl<'a> GiftsService<'a> {
         let mut stmt = conn.prepare(
             "SELECT id, name, relationship, date_of_birth FROM people WHERE deleted_at IS NULL",
         )?;
-        
+
         let iter = stmt.query_map([], |row| -> rusqlite::Result<Person> {
             Ok(Person {
                 id: row.get(0)?,
@@ -105,7 +98,7 @@ impl<'a> GiftsService<'a> {
         let mut stmt = conn.prepare(
             "SELECT id, person_id, description, estimated_price_cents, status FROM gift_ideas WHERE deleted_at IS NULL",
         )?;
-        
+
         let iter = stmt.query_map([], |row| -> rusqlite::Result<GiftIdea> {
             Ok(GiftIdea {
                 id: row.get(0)?,
@@ -135,14 +128,18 @@ mod tests {
         let service = GiftsService::new(&db);
 
         // Add a person
-        let person_id = service.add_person("Alice", Some("Friend"), Some("1990-01-01")).unwrap();
-        
+        let person_id = service
+            .add_person("Alice", Some("Friend"), Some("1990-01-01"))
+            .unwrap();
+
         let people = service.get_people().unwrap();
         assert_eq!(people.len(), 1);
         assert_eq!(people[0].name, "Alice");
 
         // Add a gift idea
-        service.add_gift_idea(&person_id, "Book", Some(2000)).unwrap();
+        service
+            .add_gift_idea(&person_id, "Book", Some(2000))
+            .unwrap();
 
         let ideas = service.get_gift_ideas().unwrap();
         assert_eq!(ideas.len(), 1);

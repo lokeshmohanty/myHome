@@ -1,0 +1,318 @@
+name: Release
+
+  # Trigger on version commits against the main branch
+  on:
+  push:
+  branches:
+  - main
+    workflow_dispatch:
+
+    env:
+    CARGO_TERM_COLOR: always
+      BINARY_NAME: myhome
+        RUST_BACKTRACE: 1
+
+          # ── GitHub Release Permissions ────────────────────────────────────────────────
+          permissions:
+          contents: write
+
+            jobs:
+            check-release:
+            runs-on: ubuntu-latest
+              outputs:
+              should_release: ${{
+                steps.check.outputs.should_release }}
+                version: ${{ steps.check.outputs.version }}
+                steps:
+                - uses: actions/checkout@v4
+                - name: Check for release commit
+                id: check
+                run: |
+                message = "${{ github.event.head_commit.message }}"
+          if [[ "$message" =~ ^release:\ bump\ version\ to\ ([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+              echo "should_release=true" >> $GITHUB_OUTPUT
+              echo "version=${BASH_REMATCH[1]}" >> $GITHUB_OUTPUT
+              echo "Detected release for version ${BASH_REMATCH[1]}"
+          else
+              echo "should_release=false" >> $GITHUB_OUTPUT
+              echo "Not a release commit"
+          fi
+
+  # ── Linux x86_64 ─────────────────────────────────────────────────────────────
+  # Targets: Wayland + X11 via i-slint-backend-winit + femtovg/skia/software
+  # rusqlite is "bundled" so SQLite is compiled in — no system sqlite3 needed
+  release-linux:
+    name: Release · Linux (x86_64)
+    needs: check-release
+    if: needs.check-release.outputs.should_release == 'true'
+    runs-on: ubuntu-22.04   # Use 22.04 for wider glibc compatibility (runs on 20.04+)
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libxcb-shape0-dev libxcb-xfixes0-dev libxcb-render0-dev \
+            libxkbcommon-dev \
+            libfontconfig1-dev \
+            libfreetype6-dev \
+            libegl1-mesa-dev \
+            libgles2-mesa-dev \
+            libgl1-mesa-dev \
+            libwayland-dev \
+            libinput-dev \
+            libudev-dev \
+            clang \
+            libclang-dev \
+            cmake \
+            pkg-config
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build release binary
+        run: cargo build --release
+
+      - name: Package tarball
+        run: |
+          mkdir -p dist
+          cp target/release/${{ env.BINARY_NAME }} dist/
+          # Include the Slint UI assets and schema (runtime reads these from disk)
+          cp -r ui dist/
+          cp src/db/schema.sql dist/
+          cp README.md dist/
+          tar -czvf ${{ env.BINARY_NAME }}-v${{ needs.check-release.outputs.version }}-linux-x86_64.tar.gz \
+            -C dist .
+
+      - name: Upload release asset
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: "v${{ needs.check-release.outputs.version }}"
+          files: ${{ env.BINARY_NAME }}-v${{ needs.check-release.outputs.version }}-linux-x86_64.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ── Linux aarch64 (ARM64) ────────────────────────────────────────────────────
+  # Uses cross-rs for cross-compilation since GitHub has no native arm64 runner
+  release-linux-arm64:
+    name: Release · Linux (aarch64)
+    needs: check-release
+    if: needs.check-release.outputs.should_release == 'true'
+    runs-on: ubuntu-22.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-unknown-linux-gnu
+
+      - name: Install cross
+        run: cargo install cross --git https://github.com/cross-rs/cross
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build release binary (cross)
+        run: cross build --release --target aarch64-unknown-linux-gnu
+
+      - name: Package tarball
+        run: |
+          mkdir -p dist
+          cp target/aarch64-unknown-linux-gnu/release/${{ env.BINARY_NAME }} dist/
+          cp -r ui dist/
+          cp src/db/schema.sql dist/
+          cp README.md dist/
+          tar -czvf ${{ env.BINARY_NAME }}-v${{ needs.check-release.outputs.version }}-linux-aarch64.tar.gz \
+            -C dist .
+
+      - name: Upload release asset
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: "v${{ needs.check-release.outputs.version }}"
+          files: ${{ env.BINARY_NAME }}-v${{ needs.check-release.outputs.version }}-linux-aarch64.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ── Windows x86_64 ───────────────────────────────────────────────────────────
+  # Uses i-slint-backend-winit with Windows native windowing
+  # rusqlite bundled → no MSVC sqlite.lib needed
+  # aws-lc-sys → needs nasm + cmake (provided by windows-latest)
+  release-windows:
+    name: Release · Windows (x86_64)
+    needs: check-release
+    if: needs.check-release.outputs.should_release == 'true'
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install NASM (required by aws-lc-sys / ring)
+        uses: ilammy/setup-nasm@v1
+
+      - name: Install cmake (required by aws-lc-sys)
+        uses: lukka/get-cmake@latest
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build release binary
+        run: cargo build --release
+
+      - name: Package zip
+        run: |
+          New-Item -ItemType Directory -Path dist -Force
+          Copy-Item target\release\${{ env.BINARY_NAME }}.exe dist\
+          Copy-Item -Recurse ui dist\
+          Copy-Item src\db\schema.sql dist\
+          Copy-Item README.md dist\
+          Compress-Archive -Path dist\* `
+            -DestinationPath ${{ env.BINARY_NAME }}-v${{ needs.check-release.outputs.version }}-windows-x86_64.zip
+
+      - name: Upload release asset
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: "v${{ needs.check-release.outputs.version }}"
+          files: ${{ env.BINARY_NAME }}-v${{ needs.check-release.outputs.version }}-windows-x86_64.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ── macOS (Apple Silicon + Intel via universal binary) ───────────────────────
+  # Slint supports macOS via i-slint-backend-winit with Metal renderer (skia)
+  release-macos:
+    name: Release · macOS (universal)
+    needs: check-release
+    if: needs.check-release.outputs.should_release == 'true'
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - name: Install cmake (required by aws-lc-sys / skia)
+        run: brew install cmake pkg-config
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build for Apple Silicon (arm64)
+        run: cargo build --release --target aarch64-apple-darwin
+
+      - name: Build for Intel (x86_64)
+        run: cargo build --release --target x86_64-apple-darwin
+
+      - name: Create universal binary with lipo
+        run: |
+          lipo -create -output target/${{ env.BINARY_NAME }}-universal \
+            target/aarch64-apple-darwin/release/${{ env.BINARY_NAME }} \
+            target/x86_64-apple-darwin/release/${{ env.BINARY_NAME }}
+
+      - name: Package tarball
+        run: |
+          mkdir -p dist
+          cp target/${{ env.BINARY_NAME }}-universal dist/${{ env.BINARY_NAME }}
+          cp -r ui dist/
+          cp src/db/schema.sql dist/
+          cp README.md dist/
+          tar -czvf ${{ env.BINARY_NAME }}-v${{ needs.check-release.outputs.version }}-macos-universal.tar.gz \
+            -C dist .
+
+      - name: Upload release asset
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: "v${{ needs.check-release.outputs.version }}"
+          files: ${{ env.BINARY_NAME }}-v${{ needs.check-release.outputs.version }}-macos-universal.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  release-android:
+    name: Release · Android (arm64)
+    needs: check-release
+    if: needs.check-release.outputs.should_release == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: "17"
+          distribution: "temurin"
+
+      - name: Setup Android SDK + NDK
+        uses: android-actions/setup-android@v3
+
+      - run: sdkmanager "ndk;27.2.12479018" "build-tools;35.0.0" "platforms;android-35"
+
+      - name: Set NDK env vars
+        run: |
+          echo "ANDROID_NDK_ROOT=$ANDROID_SDK_ROOT/ndk/27.2.12479018" >> $GITHUB_ENV
+          echo "$ANDROID_SDK_ROOT/ndk/27.2.12479018/toolchains/llvm/prebuilt/linux-x86_64/bin" >> $GITHUB_PATH
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install cargo-apk
+        run: cargo install cargo-apk
+
+      - name: Generate Release Keystore
+        run: |
+          keytool -genkey -v -keystore myhome.keystore -storepass android \
+            -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 \
+            -validity 10000 -dname "C=US, O=Android, CN=Android Debug"
+
+      - name: Build APK
+        run: cargo apk build --release --lib
+        env:
+          ANDROID_NDK_ROOT: ${{ env.ANDROID_NDK_ROOT }}
+
+      - name: Upload APK
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: "v${{ needs.check-release.outputs.version }}"
+          files: target/release/apk/myhome.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  release-ios:
+    name: Release · iOS + iPadOS
+    needs: check-release
+    if: needs.check-release.outputs.should_release == 'true'
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios,aarch64-apple-ios-sim
+
+      - uses: Swatinem/rust-cache@v2
+
+      # Unsigned build — suitable for TestFlight via Xcode upload or local install
+      - name: Build iOS (device)
+        run: cargo build --release --target aarch64-apple-ios --lib
+
+      - name: Build iOS Simulator (for testing)
+        run: cargo build --release --target aarch64-apple-ios-sim --lib
+
+      - name: Package static lib
+        run: |
+          mkdir -p Payload/myhome.app
+          cp target/aarch64-apple-ios/release/libmyhome.a Payload/myhome.app/
+          cp Info.plist Payload/myhome.app/
+          zip -r myhome-v${{ needs.check-release.outputs.version }}-ios.ipa Payload/
+
+      - name: Upload SDK Artifact
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: "v${{ needs.check-release.outputs.version }}"
+          files: myhome-v${{ needs.check-release.outputs.version }}-ios.ipa
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -3,6 +3,10 @@ name = "myhome"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+# Mobile requires a cdylib entry point, not just a binary
+crate-type = ["cdylib", "staticlib", "lib"]
+
 [dependencies]
 slint = "1.9.1"
 tokio = { version = "1", features = ["full"] }
@@ -21,3 +25,24 @@ webbrowser = "1.0"
 
 [build-dependencies]
 slint-build = "1.9.1"
+
+# Android-specific: Slint's Android backend
+[target.'cfg(target_os = "android")'.dependencies]
+slint = { version = "1.9.1", features = ["backend-android-activity-06"] }
+android-activity = { version = "0.6", features = ["native-activity"] }
+ndk-context = "0.1"
+jni = "0.21.1"
+
+# iOS-specific: Slint uses the winit backend with UIKit under the hood
+[target.'cfg(target_os = "ios")'.dependencies]
+slint = { version = "1.9.1" }
+
+[package.metadata.android]
+# Android manifest settings
+package = "com.lokeshmohanty.myhome"
+
+[package.metadata.android.signing.release]
+path = "myhome.keystore"
+keystore_password = "android"
+key_alias = "androiddebugkey"
+key_password = "android"
