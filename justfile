@@ -52,8 +52,8 @@ fmt:
 # Bump version and create release commit
 bump-version VERSION:
     @echo "Bumping version to {{VERSION}}..."
-    @# Update Cargo.toml (workspace package version)
-    @sed -i 's/^version = "[0-9.]\+"/version = "{{VERSION}}"/' Cargo.toml
+    @# Update Cargo.toml (workspace package version) using ripgrep for speed
+    @rg --passthru '(?m)^version\s*=\s*"[0-9.]+"' -r 'version = "{{VERSION}}"' Cargo.toml > Cargo.toml.tmp && mv Cargo.toml.tmp Cargo.toml
     @# Update Cargo.lock
     @cargo check > /dev/null 2>&1 || true
     @git add Cargo.toml Cargo.lock

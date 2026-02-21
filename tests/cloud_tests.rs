@@ -17,7 +17,7 @@ async fn test_cloud_service_backup_flow() {
     let db_path = "test_cloud.db";
     let db = Db::new(db_path).unwrap();
     db.init().unwrap();
-    let service = CloudService::new(&db);
+    let _service = CloudService::new(&db);
 
     let db_path_buf = Path::new(db_path);
     // We can't actually sync without credentials, but we can verify the backup part of the flow
@@ -30,6 +30,8 @@ async fn test_cloud_service_backup_flow() {
     db.backup(&backup_path).unwrap();
     assert!(backup_path.exists());
 
+    drop(_service);
+    drop(db);
     std::fs::remove_file(db_path).unwrap();
     std::fs::remove_file(backup_path).unwrap();
 }

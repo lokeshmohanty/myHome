@@ -96,8 +96,8 @@ mod tests {
 
         // Ordered by name
         assert_eq!(restaurants[0].name, "Pizza Neapolitana");
-        assert_eq!(restaurants[0].visited_flag, false);
+        assert!(!restaurants[0].visited_flag);
         assert_eq!(restaurants[1].name, "Sushi Spot");
-        assert_eq!(restaurants[1].visited_flag, true);
+        assert!(restaurants[1].visited_flag);
     }
 }
