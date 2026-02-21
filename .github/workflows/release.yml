@@ -1,34 +1,33 @@
 name: Release
 
-  # Trigger on version commits against the main branch
-  on:
+# Trigger on version commits against the main branch
+on:
   push:
-  branches:
-  - main
-    workflow_dispatch:
+    branches:
+      - main
+  workflow_dispatch:
 
-    env:
-    CARGO_TERM_COLOR: always
-      BINARY_NAME: myhome
-        RUST_BACKTRACE: 1
+env:
+  CARGO_TERM_COLOR: always
+  BINARY_NAME: myhome
+  RUST_BACKTRACE: 1
 
-          # ── GitHub Release Permissions ────────────────────────────────────────────────
-          permissions:
-          contents: write
+# ── GitHub Release Permissions ────────────────────────────────────────────────
+permissions:
+  contents: write
 
-            jobs:
-            check-release:
-            runs-on: ubuntu-latest
-              outputs:
-              should_release: ${{
-                steps.check.outputs.should_release }}
-                version: ${{ steps.check.outputs.version }}
-                steps:
-                - uses: actions/checkout@v4
-                - name: Check for release commit
-                id: check
-                run: |
-                message = "${{ github.event.head_commit.message }}"
+jobs:
+  check-release:
+    runs-on: ubuntu-latest
+    outputs:
+      should_release: ${{ steps.check.outputs.should_release }}
+      version: ${{ steps.check.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check for release commit
+        id: check
+        run: |
+          message="${{ github.event.head_commit.message }}"
           if [[ "$message" =~ ^release:\ bump\ version\ to\ ([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
               echo "should_release=true" >> $GITHUB_OUTPUT
               echo "version=${BASH_REMATCH[1]}" >> $GITHUB_OUTPUT
@@ -112,6 +111,26 @@ name: Release
 
       - name: Install cross
         run: cargo install cross --git https://github.com/cross-rs/cross
+
+      - name: Install arm64 dependencies
+        run: |
+          sudo dpkg --add-architecture arm64
+          # Update sources.list to point arm64 packages to ports.ubuntu.com
+          sudo sed -i 's/deb http/deb [arch=amd64,i386] http/g' /etc/apt/sources.list
+          echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ jammy main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list
+          echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ jammy-updates main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list
+          echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ jammy-security main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list
+          echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ jammy-backports main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list
+          
+          # We must handle sources.list.d files which GitHub Actions injects
+          for list in /etc/apt/sources.list.d/*.list; do
+            if grep -v -q '\[arch=' "$list" && ! grep -q 'microsoft.com' "$list" && ! grep -q 'nvidia' "$list" && ! grep -q 'github' "$list"; then
+              sudo sed -i 's/deb /deb [arch=amd64] /g' "$list"
+            fi
+          done
+
+          sudo apt-get update
+          sudo apt-get install -y libfontconfig1-dev:arm64 libxkbcommon-dev:arm64 fontconfig:arm64
 
       - uses: Swatinem/rust-cache@v2
 
@@ -250,7 +269,7 @@ name: Release
       - name: Setup Android SDK + NDK
         uses: android-actions/setup-android@v3
 
-      - run: sdkmanager "ndk;27.2.12479018" "build-tools;35.0.0" "platforms;android-35"
+      - run: sdkmanager "ndk;27.2.12479018" "build-tools;35.0.0" "platforms;android-35" "platforms;android-30"
 
       - name: Set NDK env vars
         run: |

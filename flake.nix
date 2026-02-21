@@ -40,7 +40,6 @@
           mesa
           fontconfig
           libxkbcommon
-          wayland
           libx11
           libxcursor
           libxi
