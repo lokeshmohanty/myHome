@@ -33,4 +33,25 @@ impl<'a> DashboardService<'a> {
             grocery_items: grocery_service.get_grocery_list().map(|i| i.len()).unwrap_or(0),
         })
     }
+
+    pub fn get_expenditure_by_category(&self) -> Result<Vec<(String, f64)>, rusqlite::Error> {
+        let mut stmt = self.db.conn.prepare(
+            "SELECT c.name, SUM(ABS(t.amount_cents)) as total_cents 
+             FROM transactions t
+             JOIN categories c ON t.category_id = c.id
+             WHERE t.amount_cents < 0
+             GROUP BY c.id"
+        )?;
+        let rows = stmt.query_map([], |row| {
+            let name: String = row.get(0)?;
+            let total_cents: i64 = row.get(1)?;
+            Ok((name, (total_cents as f64) / 100.0))
+        })?;
+
+        let mut results = Vec::new();
+        for res in rows {
+            results.push(res?);
+        }
+        Ok(results)
+    }
 }

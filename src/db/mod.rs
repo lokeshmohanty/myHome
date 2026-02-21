@@ -16,6 +16,23 @@ impl Db {
         self.conn.execute_batch(schema)?;
         Ok(())
     }
+
+    /// Safely backups the database to a target path.
+    pub fn backup<P: AsRef<Path>>(&self, target_path: P) -> Result<()> {
+        let mut target_conn = Connection::open(target_path)?;
+        let backup = rusqlite::backup::Backup::new(&self.conn, &mut target_conn)?;
+        backup.run_to_completion(10, std::time::Duration::from_millis(100), None)?;
+        Ok(())
+    }
+
+    /// Restores the database from a source path.
+    #[allow(dead_code)]
+    pub fn restore<P: AsRef<Path>>(&mut self, source_path: P) -> Result<()> {
+        let source_conn = Connection::open(source_path)?;
+        let backup = rusqlite::backup::Backup::new(&source_conn, &mut self.conn)?;
+        backup.run_to_completion(10, std::time::Duration::from_millis(100), None)?;
+        Ok(())
+    }
 }
 
 #[cfg(test)]

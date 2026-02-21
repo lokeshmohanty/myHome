@@ -29,19 +29,19 @@
         ];
 
         # Runtime libraries needed by the Slint binary
-        runtimeLibs = [
-          pkgs.mesa
-          pkgs.fontconfig
-          pkgs.libxkbcommon
-          pkgs.wayland
-          pkgs.libx11
-          pkgs.libxcursor
-          pkgs.libxi
-          pkgs.libxrandr
-          pkgs.libGL
-          pkgs.libGLU
-          pkgs.libglut
-          pkgs.wayland
+        runtimeLibs = with pkgs; [
+          mesa
+          fontconfig
+          libxkbcommon
+          wayland
+          libx11
+          libxcursor
+          libxi
+          libxrandr
+          libGL
+          libGLU
+          libglut
+          wayland
         ];
 
       in {
@@ -60,9 +60,11 @@
             pkgs.openssl
           ] ++ runtimeLibs;
 
-          shellHook = ''
-            export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath runtimeLibs}:$LD_LIBRARY_PATH"
-          '';
+          LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath runtimeLibs;
+
+          # shellHook = ''
+          #   export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath runtimeLibs}:$LD_LIBRARY_PATH"
+          # '';
         };
       });
 }

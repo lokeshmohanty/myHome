@@ -11,8 +11,10 @@ use modules::travel::TravelService;
 use modules::gifts::GiftsService;
 use modules::household::HouseholdService;
 use modules::settings::SettingsService;
+use modules::cloud::CloudService;
 use slint::VecModel;
 use std::rc::Rc;
+use std::path::Path;
 
 slint::include_modules!();
 
@@ -325,6 +327,33 @@ fn refresh_settings(ui: &AppWindow, db_path: &str) {
 
     let codes: Vec<slint::SharedString> = settings_service.get_currency_list().into_iter().map(|c| c.code.into()).collect();
     ui.set_currency_codes(Rc::new(slint::VecModel::from(codes)).into());
+
+    let cloud_service = CloudService::new(&database);
+    ui.set_cloud_sync_status(cloud_service.get_sync_status().into());
+    ui.set_last_sync_time(cloud_service.get_last_sync_time().into());
+}
+
+// --- Analytics Refresh ---
+fn refresh_analytics(ui: &AppWindow, db_path: &str) {
+    let database = db::Db::new(db_path).expect("Failed to open DB");
+    let dashboard_service = DashboardService::new(&database);
+    
+    if let Ok(expenditures) = dashboard_service.get_expenditure_by_category() {
+        let max_amount = expenditures.iter().map(|(_, amt)| *amt).fold(0.0, f64::max);
+        
+        let mut analytics_vec = Vec::new();
+        for (cat, amt) in expenditures {
+            let percentage = if max_amount > 0.0 { amt / max_amount } else { 0.0 };
+            analytics_vec.push(AnalyticsData {
+                category: cat.into(),
+                amount: amt as f32,
+                percentage: percentage as f32,
+            });
+        }
+        
+        let rc_analytics = std::rc::Rc::new(slint::VecModel::from(analytics_vec));
+        ui.set_analytics_data(rc_analytics.into());
+    }
 }
 
 fn refresh_all_modules(ui: &AppWindow, db_path: &str) {
@@ -337,9 +366,11 @@ fn refresh_all_modules(ui: &AppWindow, db_path: &str) {
     refresh_finance(ui, db_path);
     refresh_gifts(ui, db_path);
     refresh_household(ui, db_path);
+    refresh_analytics(ui, db_path);
 }
 
-fn main() -> Result<(), slint::PlatformError> {
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // DB setup
     let db_path = "myhome_dev.db";
     let database = db::Db::new(db_path).expect("Failed to open DB");
@@ -674,7 +705,58 @@ fn main() -> Result<(), slint::PlatformError> {
         }
     });
 
+    let ui_handle15 = ui.as_weak();
+    let db_path_clone15 = db_path.to_string();
+    ui.on_link_google_account(move || {
+        let ui_handle = ui_handle15.clone();
+        let db_path = db_path_clone15.clone();
+        
+        tokio::spawn(async move {
+            let database = db::Db::new(&db_path).expect("Failed to open DB");
+            let cloud_service = CloudService::new(&database);
+            if let Ok(_) = cloud_service.link_account().await {
+                slint::invoke_from_event_loop(move || {
+                    if let Some(ui) = ui_handle.upgrade() {
+                        refresh_all_modules(&ui, &db_path);
+                    }
+                }).unwrap();
+            }
+        });
+    });
+
+    let ui_handle16 = ui.as_weak();
+    let db_path_clone16 = db_path.to_string();
+    ui.on_sync_now(move || {
+        let ui_handle = ui_handle16.clone();
+        let db_path = db_path_clone16.clone();
+        
+        tokio::spawn(async move {
+            let database = db::Db::new(&db_path).expect("Failed to open DB");
+            let cloud_service = CloudService::new(&database);
+            if let Ok(_) = cloud_service.sync_database(Path::new(&db_path)).await {
+                slint::invoke_from_event_loop(move || {
+                    if let Some(ui) = ui_handle.upgrade() {
+                        ui.set_last_sync_time(chrono::Local::now().format("%H:%M:%S").to_string().into());
+                        refresh_all_modules(&ui, &db_path);
+                    }
+                }).unwrap();
+            }
+        });
+    });
+
+    let _ui_handle17 = ui.as_weak();
+    let db_path_clone17 = db_path.to_string();
+    ui.on_invite_household_member(move |email| {
+        let db_path = db_path_clone17.clone();
+        let email = email.to_string();
+        tokio::spawn(async move {
+            let database = db::Db::new(&db_path).expect("Failed to open DB");
+            let cloud_service = CloudService::new(&database);
+            let _ = cloud_service.invite_member(&email).await;
+        });
+    });
+
     refresh_all_modules(&ui, db_path);
 
-    ui.run()
+    ui.run().map_err(|e| e.into())
 }

@@ -97,11 +97,65 @@ export struct DocumentData {
     expiry_date: string,
 }
 
+export struct AnalyticsData {
+    category: string,
+    amount: float,
+    percentage: float, // 0.0 to 1.0 for bar width
+}
+
+component PlotBar inherits Rectangle {
+    in property <string> label;
+    in property <float> value;
+    in property <float> percentage;
+    in property <color> bar-color: #007aff;
+    in property <color> text-color: #ffffff;
+
+    height: 40px;
+    background: transparent;
+
+    HorizontalBox {
+        spacing: 15px;
+        Text {
+            text: root.label;
+            width: 100px;
+            color: root.text-color;
+            vertical-alignment: center;
+        }
+        Rectangle {
+            background: root.bar-color;
+            width: root.percentage * 200px; // Use a base width for simplicity or layout
+            height: 20px;
+            border-radius: 4px;
+            animate width { duration: 500ms; easing: ease-out; }
+            
+            Text {
+                text: root.value != 0 ? root.value : "";
+                color: root.text-color;
+                font-size: 12px;
+                x: parent.width + 5px;
+                vertical-alignment: center;
+            }
+        }
+    }
+}
+
 export component AppWindow inherits Window {
     title: "My Home";
     width: 800px;
     height: 600px;
-    background: #1e1e1e;
+    
+    // Theme Palette
+    private property <color> background-color: root.current-theme == "Dark" ? #1e1e1e : #f5f5f7;
+    private property <color> sidebar-color: root.current-theme == "Dark" ? #252526 : #e5e5e7;
+    private property <color> card-color: root.current-theme == "Dark" ? #2d2d30 : #ffffff;
+    private property <color> text-main: root.current-theme == "Dark" ? #ffffff : #111111;
+    private property <color> text-sub: root.current-theme == "Dark" ? #aaaaaa : #666666;
+    private property <color> accent-color: #007aff;
+    private property <color> success-color: #28cd41;
+    private property <color> warning-color: #ffcc5c;
+    private property <color> danger-color: #ff5c5c;
+
+    background: root.background-color;
 
     in-out property <string> active-tab-id: "dashboard";
     in property <string> welcome-message: "Welcome";
@@ -150,9 +204,17 @@ export component AppWindow inherits Window {
     in property <string> user-name: "Lokesh";
     in property <string> current-theme: "Dark";
     in-out property <string> selected-currency: "INR";
+
+    in property <string> cloud-sync-status: "Not Linked";
+    in property <string> last-sync-time: "Never";
+
+    in property <[AnalyticsData]> analytics-data: [];
     
     callback update_currency(string);
     callback update_profile(string, string);
+    callback link_google_account();
+    callback sync_now();
+    callback invite_household_member(string);
 
     HorizontalBox {
         padding: 0px;
@@ -161,7 +223,7 @@ export component AppWindow inherits Window {
         // Sidebar
         Rectangle {
             width: 200px;
-            background: #252526;
+            background: root.sidebar-color;
             
             VerticalBox {
                 padding: 10px;
@@ -170,7 +232,7 @@ export component AppWindow inherits Window {
                 Text {
                     text: "My Home";
                     font-size: 24px;
-                    color: white;
+                    color: root.text-main;
                     font-weight: 700;
                     horizontal-alignment: center;
                 }
@@ -189,6 +251,11 @@ export component AppWindow inherits Window {
                     clicked => { root.active-tab-id = mod.id; }
                 }
 
+                Button {
+                    text: "Analytics";
+                    clicked => { root.active-tab-id = "analytics"; }
+                }
+
                 Rectangle { height: 20px; } // Spacer
 
                 Button {
@@ -200,14 +267,19 @@ export component AppWindow inherits Window {
 
         // Main Content Area
         Rectangle {
-            background: #1e1e1e;
+            background: root.background-color;
             
-            VerticalBox {
-                padding: 20px;
-                
-                if root.active-tab-id == "dashboard": VerticalBox {
-                    Text { text: root.welcome-message; font-size: 28px; color: white; font-weight: 700; }
-                    Text { text: "Here is your household summary."; font-size: 16px; color: #aaaaaa; }
+            Flickable {
+                viewport-height: main-layout.preferred-height;
+                interactive: true;
+
+                main-layout := VerticalBox {
+                    padding: 20px;
+                    min-height: 1000px;
+                    
+                    if root.active-tab-id == "dashboard": VerticalBox {
+                    Text { text: root.welcome-message; font-size: 28px; color: root.text-main; font-weight: 700; }
+                    Text { text: "Here is your household summary."; font-size: 16px; color: root.text-sub; }
                     
                     Rectangle { height: 30px; }
 
@@ -216,44 +288,44 @@ export component AppWindow inherits Window {
                         
                         // Finance Summary Card
                         Rectangle {
-                            background: #2d2d30;
+                            background: root.card-color;
                             border-radius: 8px;
                             VerticalBox {
                                 padding: 20px;
-                                Text { text: "Total Balance"; font-size: 14px; color: #aaaaaa; }
+                                Text { text: "Total Balance"; font-size: 14px; color: root.text-sub; }
                                 Rectangle { height: 10px; }
-                                Text { text: root.currency-symbol + root.dashboard-balance; font-size: 24px; color: #5cff5c; font-weight: 700; }
+                                Text { text: root.currency-symbol + root.dashboard-balance; font-size: 24px; color: root.success-color; font-weight: 700; }
                             }
                         }
 
                         // Travel Summary Card
                         Rectangle {
-                            background: #2d2d30;
+                            background: root.card-color;
                             border-radius: 8px;
                             VerticalBox {
                                 padding: 20px;
-                                Text { text: "Upcoming Trips"; font-size: 14px; color: #aaaaaa; }
+                                Text { text: "Upcoming Trips"; font-size: 14px; color: root.text-sub; }
                                 Rectangle { height: 10px; }
-                                Text { text: root.dashboard-trip-count; font-size: 24px; color: white; font-weight: 700; }
+                                Text { text: root.dashboard-trip-count; font-size: 24px; color: root.text-main; font-weight: 700; }
                             }
                         }
 
                         // Household Summary Card
                         Rectangle {
-                            background: #2d2d30;
+                            background: root.card-color;
                             border-radius: 8px;
                             VerticalBox {
                                 padding: 20px;
-                                Text { text: "Groceries Needed"; font-size: 14px; color: #aaaaaa; }
+                                Text { text: "Groceries Needed"; font-size: 14px; color: root.text-sub; }
                                 Rectangle { height: 10px; }
-                                Text { text: root.dashboard-grocery-count; font-size: 24px; color: white; font-weight: 700; }
+                                Text { text: root.dashboard-grocery-count; font-size: 24px; color: root.text-main; font-weight: 700; }
                             }
                         }
                     }
                 }
                 
                 if root.active-tab-id == "maintenance": VerticalBox {
-                    Text { text: "Home Appliances & Maintenance"; font-size: 24px; color: white; font-weight: 700; }
+                    Text { text: "Home Appliances & Maintenance"; font-size: 24px; color: root.text-main; font-weight: 700; }
                     Rectangle { height: 10px; }
                     
                     HorizontalBox {
@@ -273,24 +345,24 @@ export component AppWindow inherits Window {
                         for appliance in root.maintenance-appliances : HorizontalBox {
                             padding: 15px;
                             VerticalBox {
-                                Text { text: appliance.name; font-size: 18px; color: white; font-weight: 700; }
-                                Text { text: appliance.brand; font-size: 14px; color: #aaaaaa; }
+                                Text { text: appliance.name; font-size: 18px; color: root.text-main; font-weight: 700; }
+                                Text { text: appliance.brand; font-size: 14px; color: root.text-sub; }
                             }
                             VerticalBox {
                                 alignment: center;
-                                Text { text: "Purchased: " + appliance.purchase_date; font-size: 14px; color: #dddddd; horizontal-alignment: right; }
-                                Text { text: "Warranty: " + appliance.warranty_expiry; font-size: 14px; color: #ffcc5c; horizontal-alignment: right; }
+                                Text { text: "Purchased: " + appliance.purchase_date; font-size: 14px; color: root.text-sub; horizontal-alignment: right; }
+                                Text { text: "Warranty: " + appliance.warranty_expiry; font-size: 14px; color: root.warning-color; horizontal-alignment: right; }
                             }
                         }
                     }
                 }
                 
                 if root.active-tab-id == "finance": VerticalBox {
-                    Text { text: "Total Balance: " + root.currency-symbol + root.finance-balance; font-size: 24px; color: white; font-weight: 700; }
+                    Text { text: "Total Balance: " + root.currency-symbol + root.finance-balance; font-size: 24px; color: root.text-main; font-weight: 700; }
                     Rectangle { height: 10px; }
                     
                     HorizontalBox {
-                        Text { text: "Accounts"; font-size: 18px; color: white; font-weight: 700; }
+                        Text { text: "Accounts"; font-size: 18px; color: root.text-main; font-weight: 700; }
                         Button { 
                             text: "+ New Test Account"; 
                             clicked => { root.create_account("Test Account", "checking", 1500.0); } 
@@ -300,21 +372,21 @@ export component AppWindow inherits Window {
                     Rectangle { height: 10px; }
 
                     ListView {
-                        height: 120px;
+                        // height: 120px; // Removed fixed height
                         for acc in root.finance-accounts : HorizontalBox {
                             padding: 10px;
                             VerticalBox {
-                                Text { text: acc.name; font-size: 16px; color: white; font-weight: 700; }
-                                Text { text: acc.account_type; font-size: 14px; color: #aaaaaa; }
+                                Text { text: acc.name; font-size: 16px; color: root.text-main; font-weight: 700; }
+                                Text { text: acc.account_type; font-size: 14px; color: root.text-sub; }
                             }
-                            Text { text: acc.balance; font-size: 16px; color: white; font-weight: 700; horizontal-alignment: right; }
+                            Text { text: acc.balance; font-size: 16px; color: root.text-main; font-weight: 700; horizontal-alignment: right; }
                         }
                     }
 
                     Rectangle { height: 20px; }
 
                     HorizontalBox {
-                        Text { text: "Recent Transactions"; font-size: 18px; color: white; font-weight: 700; }
+                        Text { text: "Recent Transactions"; font-size: 18px; color: root.text-main; font-weight: 700; }
                         Button { 
                             text: "+ Add Test Transaction"; 
                             // Hardcoded for testing since we need an account ID. We will resolve this in Rust backend if null.
@@ -328,10 +400,10 @@ export component AppWindow inherits Window {
                         for tx in root.finance-transactions : HorizontalBox {
                             padding: 10px;
                             VerticalBox {
-                                Text { text: tx.merchant; font-size: 16px; color: white; font-weight: 700; }
-                                Text { text: tx.category + " • " + tx.date; font-size: 14px; color: #aaaaaa; }
+                                Text { text: tx.merchant; font-size: 16px; color: root.text-main; font-weight: 700; }
+                                Text { text: tx.category + " • " + tx.date; font-size: 14px; color: root.text-sub; }
                             }
-                            Text { text: tx.amount; font-size: 16px; color: tx.is_income ? #5cff5c : #ff5c5c; font-weight: 700; horizontal-alignment: right; }
+                            Text { text: tx.amount; font-size: 16px; color: tx.is_income ? root.success-color : root.danger-color; font-weight: 700; horizontal-alignment: right; }
                         }
                     }
                 }
@@ -351,12 +423,12 @@ export component AppWindow inherits Window {
                     Rectangle { height: 10px; }
 
                     ListView {
-                        height: 120px;
+                        // height: 120px; // Removed fixed height
                         for item in root.grocery-items : HorizontalBox {
                             padding: 10px;
                             VerticalBox {
                                 Text { text: item.name; font-size: 16px; color: white; font-weight: 700; }
-                                Text { text: item.category; font-size: 14px; color: #aaaaaa; }
+                                Text { text: item.category; font-size: 14px; color: root.text-sub; }
                             }
                             Text { text: item.quantity + " " + item.unit; font-size: 16px; color: white; font-weight: 700; horizontal-alignment: right; }
                         }
@@ -379,9 +451,9 @@ export component AppWindow inherits Window {
                             padding: 10px;
                             VerticalBox {
                                 Text { text: item.name; font-size: 16px; color: white; font-weight: 700; }
-                                Text { text: item.location; font-size: 14px; color: #aaaaaa; }
+                                Text { text: item.location; font-size: 14px; color: root.text-sub; }
                             }
-                            Text { text: item.quantity + " " + item.unit; font-size: 16px; color: #5cff5c; font-weight: 700; horizontal-alignment: right; }
+                            Text { text: item.quantity + " " + item.unit; font-size: 16px; color: root.success-color; font-weight: 700; horizontal-alignment: right; }
                         }
                     }
                 }
@@ -403,18 +475,24 @@ export component AppWindow inherits Window {
 
                     Rectangle { height: 20px; }
 
-                    ListView {
-                        for trip in root.travel-trips : HorizontalBox {
-                            padding: 15px;
-                            VerticalBox {
-                                Text { text: trip.name; font-size: 18px; color: white; font-weight: 700; }
-                                Text { text: trip.destination; font-size: 16px; color: #dddddd; }
-                                Text { text: trip.date_range; font-size: 14px; color: #aaaaaa; }
-                            }
-                            VerticalBox {
-                                alignment: center;
-                                Text { text: trip.trip_type; font-size: 14px; color: #5cff5c; horizontal-alignment: right; }
-                                Text { text: trip.status; font-size: 14px; color: #ffff5c; horizontal-alignment: right; }
+                    VerticalBox {
+                        spacing: 10px;
+                        for trip in root.travel-trips : Rectangle {
+                            background: root.card-color;
+                            border-radius: 8px;
+                            height: 100px;
+                            HorizontalBox {
+                                padding: 15px;
+                                VerticalBox {
+                                    Text { text: trip.name; font-size: 18px; color: root.text-main; font-weight: 700; }
+                                    Text { text: trip.destination; font-size: 16px; color: root.text-main; }
+                                    Text { text: trip.date_range; font-size: 14px; color: root.text-sub; }
+                                }
+                                VerticalBox {
+                                    alignment: center;
+                                    Text { text: trip.trip_type; font-size: 14px; color: root.success-color; horizontal-alignment: right; }
+                                    Text { text: trip.status; font-size: 14px; color: root.warning-color; horizontal-alignment: right; }
+                                }
                             }
                         }
                     }
@@ -442,11 +520,11 @@ export component AppWindow inherits Window {
                             padding: 15px;
                             VerticalBox {
                                 Text { text: rest.name; font-size: 18px; color: white; font-weight: 700; }
-                                Text { text: rest.cuisine_type + " • " + rest.location; font-size: 14px; color: #aaaaaa; }
+                                Text { text: rest.cuisine_type + " • " + rest.location; font-size: 14px; color: root.text-sub; }
                             }
                             VerticalBox {
                                 alignment: center;
-                                Text { text: rest.visited ? "Visited" : "Wishlist"; font-size: 14px; color: rest.visited ? #5cff5c : #ffcc5c; horizontal-alignment: right; }
+                                Text { text: rest.visited ? "Visited" : "Wishlist"; font-size: 14px; color: rest.visited ? root.success-color : root.warning-color; horizontal-alignment: right; }
                             }
                         }
                     }
@@ -467,16 +545,16 @@ export component AppWindow inherits Window {
                     Rectangle { height: 20px; }
 
                     ListView {
+                        // height: 150px; // Removed fixed height
                         width: 100%;
-                        height: 150px;
                         for member in root.household-members : HorizontalBox {
                             padding: 15px;
                             VerticalBox {
                                 Text { text: member.name; font-size: 18px; color: white; font-weight: 700; }
-                                Text { text: member.relationship + " • DOB: " + member.date_of_birth; font-size: 14px; color: #aaaaaa; }
+                                Text { text: member.relationship + " • DOB: " + member.date_of_birth; font-size: 14px; color: root.text-sub; }
                             }
                             Rectangle {
-                                Text { text: member.is_primary ? "Primary Contact" : ""; font-size: 14px; color: #5cff5c; horizontal-alignment: right; }
+                                Text { text: member.is_primary ? "Primary Contact" : ""; font-size: 14px; color: root.success-color; horizontal-alignment: right; }
                             }
                             Button { 
                                 text: "+ Add ID Document"; 
@@ -496,10 +574,10 @@ export component AppWindow inherits Window {
                             padding: 15px;
                             VerticalBox {
                                 Text { text: doc.name; font-size: 18px; color: white; font-weight: 700; }
-                                Text { text: doc.document_type + " • Expires: " + doc.expiry_date; font-size: 14px; color: #aaaaaa; }
+                                Text { text: doc.document_type + " • Expires: " + doc.expiry_date; font-size: 14px; color: root.text-sub; }
                             }
                             Rectangle {
-                                Text { text: "Encrypted"; font-size: 14px; color: #ffcc5c; horizontal-alignment: right; }
+                                Text { text: "Encrypted"; font-size: 14px; color: root.warning-color; horizontal-alignment: right; }
                             }
                         }
                     }
@@ -520,13 +598,13 @@ export component AppWindow inherits Window {
                     Rectangle { height: 20px; }
 
                     ListView {
+                        // height: 150px; // Removed fixed height
                         width: 100%;
-                        height: 150px;
                         for person in root.gifts-people : HorizontalBox {
                             padding: 15px;
                             VerticalBox {
                                 Text { text: person.name; font-size: 18px; color: white; font-weight: 700; }
-                                Text { text: person.relationship + " • DOB: " + person.date_of_birth; font-size: 14px; color: #aaaaaa; }
+                                Text { text: person.relationship + " • DOB: " + person.date_of_birth; font-size: 14px; color: root.text-sub; }
                             }
                             Button { 
                                 text: "+ Add Gift Idea"; 
@@ -546,10 +624,10 @@ export component AppWindow inherits Window {
                             padding: 15px;
                             VerticalBox {
                                 Text { text: idea.description; font-size: 18px; color: white; font-weight: 700; }
-                                Text { text: "Status: " + idea.status; font-size: 14px; color: #aaaaaa; }
+                                Text { text: "Status: " + idea.status; font-size: 14px; color: root.text-sub; }
                             }
                             Rectangle {
-                                Text { text: "Estimated: " + root.currency-symbol + idea.estimated_price; font-size: 16px; color: #5cff5c; font-weight: 700; horizontal-alignment: right; }
+                                Text { text: "Estimated: " + root.currency-symbol + idea.estimated_price; font-size: 16px; color: root.success-color; font-weight: 700; horizontal-alignment: right; }
                             }
                         }
                     }
@@ -559,17 +637,17 @@ export component AppWindow inherits Window {
                     Text {
                         text: "Module Settings";
                         font-size: 24px;
-                        color: white;
+                        color: root.text-main;
                         font-weight: 700;
                     }
                     Rectangle { height: 10px; }
                     ListView {
-                        height: 150px;
+                        // height: 150px; // Removed fixed height
                         for mod in root.runtime-modules : HorizontalBox {
                             padding: 10px;
                             VerticalBox {
-                                Text { text: mod.name; font-size: 18px; color: white; font-weight: 700; }
-                                Text { text: mod.description; font-size: 14px; color: #aaaaaa; }
+                                Text { text: mod.name; font-size: 18px; color: root.text-main; font-weight: 700; }
+                                Text { text: mod.description; font-size: 14px; color: root.text-sub; }
                             }
                             Switch {
                                 checked: mod.is_enabled;
@@ -585,7 +663,7 @@ export component AppWindow inherits Window {
                     Text {
                         text: "Personalization";
                         font-size: 24px;
-                        color: white;
+                        color: root.text-main;
                         font-weight: 700;
                     }
                     Rectangle { height: 10px; }
@@ -593,14 +671,14 @@ export component AppWindow inherits Window {
                     HorizontalBox {
                         spacing: 15px;
                         VerticalBox {
-                            Text { text: "Display Name"; color: #aaaaaa; }
+                            Text { text: "Display Name"; color: root.text-sub; }
                             user_name_input := LineEdit {
                                 text: root.user_name;
                                 placeholder-text: "Enter your name";
                             }
                         }
                         VerticalBox {
-                            Text { text: "App Theme"; color: #aaaaaa; }
+                            Text { text: "App Theme"; color: root.text-sub; }
                             ComboBox {
                                 model: ["Dark", "Light"];
                                 current-value: root.current-theme;
@@ -614,7 +692,7 @@ export component AppWindow inherits Window {
                     HorizontalBox {
                         spacing: 15px;
                         VerticalBox {
-                            Text { text: "Base Currency"; color: #aaaaaa; }
+                            Text { text: "Base Currency"; color: root.text-sub; }
                             ComboBox {
                                 model: root.currency-codes;
                                 current-value: root.selected-currency;
@@ -629,6 +707,103 @@ export component AppWindow inherits Window {
                             }
                         }
                     }
+
+                    Rectangle { height: 20px; }
+
+                    Text {
+                        text: "Cloud Sync & Collaboration";
+                        font-size: 24px;
+                        color: root.text-main;
+                        font-weight: 700;
+                    }
+                    Rectangle { height: 10px; }
+
+                    HorizontalBox {
+                        spacing: 15px;
+                        VerticalBox {
+                            Text { text: "Account Status"; color: root.text-sub; }
+                            Text { text: root.cloud-sync-status; color: root.text-main; font-weight: 700; }
+                        }
+                        VerticalBox {
+                            Text { text: "Last Synced"; color: root.text-sub; }
+                            Text { text: root.last-sync-time; color: root.text-main; }
+                        }
+                        VerticalBox {
+                            alignment: end;
+                            Button {
+                                text: "Link Google Account";
+                                clicked => { root.link_google_account(); }
+                            }
+                        }
+                    }
+
+                    VerticalBox {
+                        Rectangle { height: 15px; }
+                        if root.cloud-sync-status == "Not Linked": Text {
+                            text: "💡 Link your Google Account to invite family members.";
+                            color: root.warning-color;
+                        }
+                        HorizontalBox {
+                            spacing: 15px;
+                            VerticalBox {
+                                Text { text: "Invite Family Member (Email)"; color: root.text-sub; }
+                                invite_email := LineEdit {
+                                    placeholder-text: "email@example.com";
+                                    enabled: root.cloud-sync-status != "Not Linked";
+                                }
+                            }
+                            VerticalBox {
+                                alignment: end;
+                                Button {
+                                    text: "Send Invitation";
+                                    enabled: root.cloud-sync-status != "Not Linked" && invite_email.text != "";
+                                    clicked => { 
+                                        root.invite_household_member(invite_email.text);
+                                        invite_email.text = "";
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Rectangle { height: 15px; }
+                    Button {
+                        text: "Sync Now";
+                        primary: true;
+                        clicked => { root.sync_now(); }
+                    }
+                }
+
+                if root.active-tab-id == "analytics": VerticalBox {
+                    Text { text: "Expense Analytics"; font-size: 24px; color: root.text-main; font-weight: 700; }
+                    Text { text: "Visualizing expenditure by category."; font-size: 14px; color: root.text-sub; }
+                    
+                    Rectangle { height: 30px; }
+
+                    Rectangle {
+                        background: root.card-color;
+                        border-radius: 8px;
+                        
+                        VerticalBox {
+                            padding: 20px;
+                            spacing: 20px;
+                            if root.analytics-data.length == 0: Text {
+                                text: "No expense data to display yet.";
+                                color: root.text-sub;
+                                horizontal-alignment: center;
+                            }
+                            for data in root.analytics-data: PlotBar {
+                                label: data.category;
+                                value: data.amount;
+                                percentage: data.percentage;
+                                bar-color: root.accent-color;
+                                text-color: root.text-main;
+                            }
+                        }
+                    }
+
+                    Rectangle { height: 50px; } // Bottom margin
+                }
                 }
             }
         }

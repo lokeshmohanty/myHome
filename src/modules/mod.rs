@@ -8,6 +8,7 @@ pub mod travel;
 pub mod gifts;
 pub mod household;
 pub mod settings;
+pub mod cloud;
 // Modules outlined in plan.md
 // finance/
 // grocery/
