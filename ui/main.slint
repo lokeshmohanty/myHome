@@ -1,0 +1,636 @@
+import { Button, VerticalBox, HorizontalBox, ListView, Switch, ComboBox, LineEdit } from "std-widgets.slint";
+
+export struct ModuleData {
+    id: string,
+    name: string,
+    description: string,
+    is_enabled: bool,
+}
+
+export struct FinanceAccountData {
+    id: string,
+    name: string,
+    account_type: string,
+    currency_code: string,
+    balance: string,
+}
+
+export struct FinanceTransactionData {
+    id: string,
+    amount: string,
+    is_income: bool,
+    date: string,
+    merchant: string,
+    category: string,
+}
+
+export struct GroceryItemData {
+    id: string,
+    name: string,
+    quantity: float,
+    unit: string,
+    category: string,
+}
+
+export struct InventoryItemData {
+    id: string,
+    name: string,
+    quantity: float,
+    unit: string,
+    location: string,
+}
+
+export struct TravelTripData {
+    id: string,
+    name: string,
+    destination: string,
+    date_range: string,
+    trip_type: string,
+    status: string,
+}
+
+export struct DiningRestaurantData {
+    id: string,
+    name: string,
+    cuisine_type: string,
+    location: string,
+    visited: bool,
+    rating: string,
+}
+
+export struct MaintenanceApplianceData {
+    id: string,
+    name: string,
+    brand: string,
+    purchase_date: string,
+    warranty_expiry: string,
+}
+
+export struct PersonData {
+    id: string,
+    name: string,
+    relationship: string,
+    date_of_birth: string,
+}
+
+export struct GiftIdeaData {
+    id: string,
+    person_id: string,
+    description: string,
+    estimated_price: string,
+    status: string,
+}
+
+export struct MemberData {
+    id: string,
+    name: string,
+    relationship: string,
+    date_of_birth: string,
+    is_primary: bool,
+}
+
+export struct DocumentData {
+    id: string,
+    member_id: string,
+    name: string,
+    document_type: string,
+    expiry_date: string,
+}
+
+export component AppWindow inherits Window {
+    title: "My Home";
+    width: 800px;
+    height: 600px;
+    background: #1e1e1e;
+
+    in-out property <string> active-tab-id: "dashboard";
+    in property <string> welcome-message: "Welcome";
+    in property <string> dashboard-balance: "0.00";
+    in property <int> dashboard-trip-count: 0;
+    in property <int> dashboard-grocery-count: 0;
+    in property <string> currency-symbol: "₹";
+
+    in property <string> finance-balance: "0.00";
+    
+    in-out property <[ModuleData]> runtime-modules: [];
+    callback toggle_module(string, bool);
+    
+    in property <[FinanceAccountData]> finance-accounts: [];
+    callback create_account(string, string, float);
+
+    in property <[FinanceTransactionData]> finance-transactions: [];
+    callback create_transaction(string, float, string, string);
+
+    in property <[GroceryItemData]> grocery-items: [];
+    callback add_grocery_item(string, string);
+
+    in property <[InventoryItemData]> inventory-items: [];
+    callback add_inventory_item(string, float);
+
+    in property <[TravelTripData]> travel-trips: [];
+    callback add_travel_trip(string, string, string, string, string);
+
+    in property <[DiningRestaurantData]> dining-restaurants: [];
+    callback add_restaurant(string, string, string, bool);
+
+    in property <[MaintenanceApplianceData]> maintenance-appliances: [];
+    callback add_appliance(string, string, string, string);
+
+    in property <[PersonData]> gifts-people: [];
+    in property <[GiftIdeaData]> gifts-ideas: [];
+    callback add_person(string, string, string);
+    callback add_gift_idea(string, string, int);
+
+    in property <[MemberData]> household-members: [];
+    in property <[DocumentData]> household-documents: [];
+    callback add_member(string, string, string, bool);
+    callback add_document(string, string, string, string, string);
+
+    in property <[string]> currency-codes: [];
+    in property <string> user-name: "Lokesh";
+    in property <string> current-theme: "Dark";
+    in-out property <string> selected-currency: "INR";
+    
+    callback update_currency(string);
+    callback update_profile(string, string);
+
+    HorizontalBox {
+        padding: 0px;
+        spacing: 0px;
+
+        // Sidebar
+        Rectangle {
+            width: 200px;
+            background: #252526;
+            
+            VerticalBox {
+                padding: 10px;
+                spacing: 10px;
+
+                Text {
+                    text: "My Home";
+                    font-size: 24px;
+                    color: white;
+                    font-weight: 700;
+                    horizontal-alignment: center;
+                }
+
+                Rectangle { height: 20px; } // Spacer
+
+                // Navigation Buttons (Static + Dynamic)
+                Button {
+                    text: "Dashboard";
+                    clicked => { root.active-tab-id = "dashboard"; }
+                }
+                
+                for mod in root.runtime-modules : Button {
+                    text: mod.name;
+                    visible: mod.is_enabled;
+                    clicked => { root.active-tab-id = mod.id; }
+                }
+
+                Rectangle { height: 20px; } // Spacer
+
+                Button {
+                    text: "Settings (Modules)";
+                    clicked => { root.active-tab-id = "settings"; }
+                }
+            }
+        }
+
+        // Main Content Area
+        Rectangle {
+            background: #1e1e1e;
+            
+            VerticalBox {
+                padding: 20px;
+                
+                if root.active-tab-id == "dashboard": VerticalBox {
+                    Text { text: root.welcome-message; font-size: 28px; color: white; font-weight: 700; }
+                    Text { text: "Here is your household summary."; font-size: 16px; color: #aaaaaa; }
+                    
+                    Rectangle { height: 30px; }
+
+                    HorizontalBox {
+                        spacing: 20px;
+                        
+                        // Finance Summary Card
+                        Rectangle {
+                            background: #2d2d30;
+                            border-radius: 8px;
+                            VerticalBox {
+                                padding: 20px;
+                                Text { text: "Total Balance"; font-size: 14px; color: #aaaaaa; }
+                                Rectangle { height: 10px; }
+                                Text { text: root.currency-symbol + root.dashboard-balance; font-size: 24px; color: #5cff5c; font-weight: 700; }
+                            }
+                        }
+
+                        // Travel Summary Card
+                        Rectangle {
+                            background: #2d2d30;
+                            border-radius: 8px;
+                            VerticalBox {
+                                padding: 20px;
+                                Text { text: "Upcoming Trips"; font-size: 14px; color: #aaaaaa; }
+                                Rectangle { height: 10px; }
+                                Text { text: root.dashboard-trip-count; font-size: 24px; color: white; font-weight: 700; }
+                            }
+                        }
+
+                        // Household Summary Card
+                        Rectangle {
+                            background: #2d2d30;
+                            border-radius: 8px;
+                            VerticalBox {
+                                padding: 20px;
+                                Text { text: "Groceries Needed"; font-size: 14px; color: #aaaaaa; }
+                                Rectangle { height: 10px; }
+                                Text { text: root.dashboard-grocery-count; font-size: 24px; color: white; font-weight: 700; }
+                            }
+                        }
+                    }
+                }
+                
+                if root.active-tab-id == "maintenance": VerticalBox {
+                    Text { text: "Home Appliances & Maintenance"; font-size: 24px; color: white; font-weight: 700; }
+                    Rectangle { height: 10px; }
+                    
+                    HorizontalBox {
+                        Button { 
+                            text: "+ Add HVAC"; 
+                            clicked => { root.add_appliance("HVAC System", "Carrier", "2020-05-01", "2030-05-01"); } 
+                        }
+                        Button { 
+                            text: "+ Add Refrigerator"; 
+                            clicked => { root.add_appliance("Refrigerator", "Samsung", "2022-11-15", "2025-11-15"); } 
+                        }
+                    }
+
+                    Rectangle { height: 20px; }
+
+                    ListView {
+                        for appliance in root.maintenance-appliances : HorizontalBox {
+                            padding: 15px;
+                            VerticalBox {
+                                Text { text: appliance.name; font-size: 18px; color: white; font-weight: 700; }
+                                Text { text: appliance.brand; font-size: 14px; color: #aaaaaa; }
+                            }
+                            VerticalBox {
+                                alignment: center;
+                                Text { text: "Purchased: " + appliance.purchase_date; font-size: 14px; color: #dddddd; horizontal-alignment: right; }
+                                Text { text: "Warranty: " + appliance.warranty_expiry; font-size: 14px; color: #ffcc5c; horizontal-alignment: right; }
+                            }
+                        }
+                    }
+                }
+                
+                if root.active-tab-id == "finance": VerticalBox {
+                    Text { text: "Total Balance: " + root.currency-symbol + root.finance-balance; font-size: 24px; color: white; font-weight: 700; }
+                    Rectangle { height: 10px; }
+                    
+                    HorizontalBox {
+                        Text { text: "Accounts"; font-size: 18px; color: white; font-weight: 700; }
+                        Button { 
+                            text: "+ New Test Account"; 
+                            clicked => { root.create_account("Test Account", "checking", 1500.0); } 
+                        }
+                    }
+
+                    Rectangle { height: 10px; }
+
+                    ListView {
+                        height: 120px;
+                        for acc in root.finance-accounts : HorizontalBox {
+                            padding: 10px;
+                            VerticalBox {
+                                Text { text: acc.name; font-size: 16px; color: white; font-weight: 700; }
+                                Text { text: acc.account_type; font-size: 14px; color: #aaaaaa; }
+                            }
+                            Text { text: acc.balance; font-size: 16px; color: white; font-weight: 700; horizontal-alignment: right; }
+                        }
+                    }
+
+                    Rectangle { height: 20px; }
+
+                    HorizontalBox {
+                        Text { text: "Recent Transactions"; font-size: 18px; color: white; font-weight: 700; }
+                        Button { 
+                            text: "+ Add Test Transaction"; 
+                            // Hardcoded for testing since we need an account ID. We will resolve this in Rust backend if null.
+                            clicked => { root.create_transaction("auto_first_account", -15.50, "Coffee Shop", "Dining"); } 
+                        }
+                    }
+
+                    Rectangle { height: 10px; }
+
+                    ListView {
+                        for tx in root.finance-transactions : HorizontalBox {
+                            padding: 10px;
+                            VerticalBox {
+                                Text { text: tx.merchant; font-size: 16px; color: white; font-weight: 700; }
+                                Text { text: tx.category + " • " + tx.date; font-size: 14px; color: #aaaaaa; }
+                            }
+                            Text { text: tx.amount; font-size: 16px; color: tx.is_income ? #5cff5c : #ff5c5c; font-weight: 700; horizontal-alignment: right; }
+                        }
+                    }
+                }
+
+                if root.active-tab-id == "grocery": VerticalBox {
+                    Text { text: "Household Logistics"; font-size: 24px; color: white; font-weight: 700; }
+                    Rectangle { height: 10px; }
+                    
+                    HorizontalBox {
+                        Text { text: "Grocery List"; font-size: 18px; color: white; font-weight: 700; }
+                        Button { 
+                            text: "+ Add Milk"; 
+                            clicked => { root.add_grocery_item("Organic Milk", "Dairy"); } 
+                        }
+                    }
+
+                    Rectangle { height: 10px; }
+
+                    ListView {
+                        height: 120px;
+                        for item in root.grocery-items : HorizontalBox {
+                            padding: 10px;
+                            VerticalBox {
+                                Text { text: item.name; font-size: 16px; color: white; font-weight: 700; }
+                                Text { text: item.category; font-size: 14px; color: #aaaaaa; }
+                            }
+                            Text { text: item.quantity + " " + item.unit; font-size: 16px; color: white; font-weight: 700; horizontal-alignment: right; }
+                        }
+                    }
+
+                    Rectangle { height: 20px; }
+
+                    HorizontalBox {
+                        Text { text: "Pantry Inventory"; font-size: 18px; color: white; font-weight: 700; }
+                        Button { 
+                            text: "+ Add Pasta"; 
+                            clicked => { root.add_inventory_item("Penne Pasta", 2.0); } 
+                        }
+                    }
+
+                    Rectangle { height: 10px; }
+
+                    ListView {
+                        for item in root.inventory-items : HorizontalBox {
+                            padding: 10px;
+                            VerticalBox {
+                                Text { text: item.name; font-size: 16px; color: white; font-weight: 700; }
+                                Text { text: item.location; font-size: 14px; color: #aaaaaa; }
+                            }
+                            Text { text: item.quantity + " " + item.unit; font-size: 16px; color: #5cff5c; font-weight: 700; horizontal-alignment: right; }
+                        }
+                    }
+                }
+
+                if root.active-tab-id == "travel": VerticalBox {
+                    Text { text: "Upcoming Trips"; font-size: 24px; color: white; font-weight: 700; }
+                    Rectangle { height: 10px; }
+                    
+                    HorizontalBox {
+                        Button { 
+                            text: "+ Plan Paris Vacation"; 
+                            clicked => { root.add_travel_trip("Summer Vacation", "Paris", "2024-06-01", "2024-06-15", "vacation"); } 
+                        }
+                        Button { 
+                            text: "+ Plan Business Trip"; 
+                            clicked => { root.add_travel_trip("Tech Conference", "San Francisco", "2024-04-10", "2024-04-14", "business"); } 
+                        }
+                    }
+
+                    Rectangle { height: 20px; }
+
+                    ListView {
+                        for trip in root.travel-trips : HorizontalBox {
+                            padding: 15px;
+                            VerticalBox {
+                                Text { text: trip.name; font-size: 18px; color: white; font-weight: 700; }
+                                Text { text: trip.destination; font-size: 16px; color: #dddddd; }
+                                Text { text: trip.date_range; font-size: 14px; color: #aaaaaa; }
+                            }
+                            VerticalBox {
+                                alignment: center;
+                                Text { text: trip.trip_type; font-size: 14px; color: #5cff5c; horizontal-alignment: right; }
+                                Text { text: trip.status; font-size: 14px; color: #ffff5c; horizontal-alignment: right; }
+                            }
+                        }
+                    }
+                }
+
+                if root.active-tab-id == "dining": VerticalBox {
+                    Text { text: "Dining & Wishlist"; font-size: 24px; color: white; font-weight: 700; }
+                    Rectangle { height: 10px; }
+                    
+                    HorizontalBox {
+                        Button { 
+                            text: "+ Add to Wishlist"; 
+                            clicked => { root.add_restaurant("Gourmet Burger", "American", "Downtown", false); } 
+                        }
+                        Button { 
+                            text: "+ Log Visited"; 
+                            clicked => { root.add_restaurant("Sushi Spot", "Japanese", "Uptown", true); } 
+                        }
+                    }
+
+                    Rectangle { height: 20px; }
+
+                    ListView {
+                        for rest in root.dining-restaurants : HorizontalBox {
+                            padding: 15px;
+                            VerticalBox {
+                                Text { text: rest.name; font-size: 18px; color: white; font-weight: 700; }
+                                Text { text: rest.cuisine_type + " • " + rest.location; font-size: 14px; color: #aaaaaa; }
+                            }
+                            VerticalBox {
+                                alignment: center;
+                                Text { text: rest.visited ? "Visited" : "Wishlist"; font-size: 14px; color: rest.visited ? #5cff5c : #ffcc5c; horizontal-alignment: right; }
+                            }
+                        }
+                    }
+                }
+
+                if root.active-tab-id == "household": VerticalBox {
+                    Text { text: "Household Members & Documents"; font-size: 24px; color: white; font-weight: 700; }
+                    Rectangle { height: 10px; }
+                    
+                    HorizontalBox {
+                        Text { text: "Members Directory"; font-size: 18px; color: white; font-weight: 700; }
+                        Button { 
+                            text: "+ Add John (Primary)"; 
+                            clicked => { root.add_member("John", "Self", "1985-06-15", true); } 
+                        }
+                    }
+
+                    Rectangle { height: 20px; }
+
+                    ListView {
+                        width: 100%;
+                        height: 150px;
+                        for member in root.household-members : HorizontalBox {
+                            padding: 15px;
+                            VerticalBox {
+                                Text { text: member.name; font-size: 18px; color: white; font-weight: 700; }
+                                Text { text: member.relationship + " • DOB: " + member.date_of_birth; font-size: 14px; color: #aaaaaa; }
+                            }
+                            Rectangle {
+                                Text { text: member.is_primary ? "Primary Contact" : ""; font-size: 14px; color: #5cff5c; horizontal-alignment: right; }
+                            }
+                            Button { 
+                                text: "+ Add ID Document"; 
+                                clicked => { root.add_document(member.id, "Driver's License", "ID", "DL-123456", "2030-05-18"); } 
+                            }
+                        }
+                    }
+
+                    Rectangle { height: 20px; }
+                    
+                    Text { text: "Encrypted Document Vault"; font-size: 18px; color: white; font-weight: 700; }
+                    Rectangle { height: 10px; }
+
+                    ListView {
+                        width: 100%;
+                        for doc in root.household-documents : HorizontalBox {
+                            padding: 15px;
+                            VerticalBox {
+                                Text { text: doc.name; font-size: 18px; color: white; font-weight: 700; }
+                                Text { text: doc.document_type + " • Expires: " + doc.expiry_date; font-size: 14px; color: #aaaaaa; }
+                            }
+                            Rectangle {
+                                Text { text: "Encrypted"; font-size: 14px; color: #ffcc5c; horizontal-alignment: right; }
+                            }
+                        }
+                    }
+                }
+
+                if root.active-tab-id == "gifts": VerticalBox {
+                    Text { text: "Gifts & Occasions"; font-size: 24px; color: white; font-weight: 700; }
+                    Rectangle { height: 10px; }
+                    
+                    HorizontalBox {
+                        Text { text: "People Tracking"; font-size: 18px; color: white; font-weight: 700; }
+                        Button { 
+                            text: "+ Add Alice (Friend)"; 
+                            clicked => { root.add_person("Alice", "Friend", "1990-01-01"); } 
+                        }
+                    }
+
+                    Rectangle { height: 20px; }
+
+                    ListView {
+                        width: 100%;
+                        height: 150px;
+                        for person in root.gifts-people : HorizontalBox {
+                            padding: 15px;
+                            VerticalBox {
+                                Text { text: person.name; font-size: 18px; color: white; font-weight: 700; }
+                                Text { text: person.relationship + " • DOB: " + person.date_of_birth; font-size: 14px; color: #aaaaaa; }
+                            }
+                            Button { 
+                                text: "+ Add Gift Idea"; 
+                                clicked => { root.add_gift_idea(person.id, "Amazon Gift Card", 50); } 
+                            }
+                        }
+                    }
+
+                    Rectangle { height: 20px; }
+                    
+                    Text { text: "Global Gift Ideas"; font-size: 18px; color: white; font-weight: 700; }
+                    Rectangle { height: 10px; }
+
+                    ListView {
+                        width: 100%;
+                        for idea in root.gifts-ideas : HorizontalBox {
+                            padding: 15px;
+                            VerticalBox {
+                                Text { text: idea.description; font-size: 18px; color: white; font-weight: 700; }
+                                Text { text: "Status: " + idea.status; font-size: 14px; color: #aaaaaa; }
+                            }
+                            Rectangle {
+                                Text { text: "Estimated: " + root.currency-symbol + idea.estimated_price; font-size: 16px; color: #5cff5c; font-weight: 700; horizontal-alignment: right; }
+                            }
+                        }
+                    }
+                }
+
+                if root.active-tab-id == "settings": VerticalBox {
+                    Text {
+                        text: "Module Settings";
+                        font-size: 24px;
+                        color: white;
+                        font-weight: 700;
+                    }
+                    Rectangle { height: 10px; }
+                    ListView {
+                        height: 150px;
+                        for mod in root.runtime-modules : HorizontalBox {
+                            padding: 10px;
+                            VerticalBox {
+                                Text { text: mod.name; font-size: 18px; color: white; font-weight: 700; }
+                                Text { text: mod.description; font-size: 14px; color: #aaaaaa; }
+                            }
+                            Switch {
+                                checked: mod.is_enabled;
+                                toggled => {
+                                    root.toggle_module(mod.id, self.checked);
+                                }
+                            }
+                        }
+                    }
+
+                    Rectangle { height: 20px; }
+
+                    Text {
+                        text: "Personalization";
+                        font-size: 24px;
+                        color: white;
+                        font-weight: 700;
+                    }
+                    Rectangle { height: 10px; }
+
+                    HorizontalBox {
+                        spacing: 15px;
+                        VerticalBox {
+                            Text { text: "Display Name"; color: #aaaaaa; }
+                            user_name_input := LineEdit {
+                                text: root.user_name;
+                                placeholder-text: "Enter your name";
+                            }
+                        }
+                        VerticalBox {
+                            Text { text: "App Theme"; color: #aaaaaa; }
+                            ComboBox {
+                                model: ["Dark", "Light"];
+                                current-value: root.current-theme;
+                                selected(val) => { root.update_profile(user_name_input.text, val); }
+                            }
+                        }
+                    }
+
+                    Rectangle { height: 15px; }
+
+                    HorizontalBox {
+                        spacing: 15px;
+                        VerticalBox {
+                            Text { text: "Base Currency"; color: #aaaaaa; }
+                            ComboBox {
+                                model: root.currency-codes;
+                                current-value: root.selected-currency;
+                                selected(val) => { root.update_currency(val); }
+                            }
+                        }
+                        VerticalBox {
+                            alignment: end;
+                            Button {
+                                text: "Save Profile";
+                                clicked => { root.update_profile(user_name_input.text, root.current-theme); }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
