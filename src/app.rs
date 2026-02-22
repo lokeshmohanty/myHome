@@ -574,6 +574,60 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
+    let ui_handle_upi = ui.as_weak();
+    let db_path_clone_upi = db_path.to_string();
+    ui.on_process_upi_payment(move |account_id, amount, merchant, category_name, upi_app| {
+        let database = db::Db::new(&db_path_clone_upi).expect("Failed to open DB");
+        let finance_service = FinanceService::new(&database);
+
+        let mut target_account_id = account_id.to_string();
+        if target_account_id == "auto_first_account" {
+            if let Ok(accounts) = finance_service.get_accounts() {
+                if !accounts.is_empty() {
+                    target_account_id = accounts[0].id.clone();
+                } else {
+                    println!("Cannot create transaction: No accounts available.");
+                    return;
+                }
+            }
+        }
+
+        let mut cat_id = None;
+        if let Ok(cats) = finance_service.get_categories() {
+            if let Some(c) = cats.iter().find(|c| c.name == category_name.as_str()) {
+                cat_id = Some(c.id.clone());
+            } else {
+                let _ = finance_service.create_category(category_name.as_str(), "expense", "#555555");
+                if let Ok(cats2) = finance_service.get_categories() {
+                    if let Some(c2) = cats2.iter().find(|c| c.name == category_name.as_str()) {
+                        cat_id = Some(c2.id.clone());
+                    }
+                }
+            }
+        }
+
+        let now = chrono::Utc::now().to_rfc3339();
+        
+        // Append UPI App to the merchant name
+        let merchant_str = format!("{} (via {})", merchant, upi_app);
+
+        // QR Amount is passed as positive value, but since it's a payment, we negate it.
+        finance_service
+            .create_transaction(
+                &target_account_id,
+                -(amount as f64 * 100.0) as i64,
+                &merchant_str,
+                &now,
+                cat_id.as_deref(),
+            )
+            .expect("Failed to create UPI transaction");
+
+        if let Some(ui) = ui_handle_upi.upgrade() {
+            refresh_finance(&ui, &db_path_clone_upi);
+            refresh_dashboard_summary(&ui, &db_path_clone_upi);
+        }
+    });
+
     let ui_handle4 = ui.as_weak();
     let db_path_clone4 = db_path.to_string();
     ui.on_add_grocery_item(move |name, category| {
